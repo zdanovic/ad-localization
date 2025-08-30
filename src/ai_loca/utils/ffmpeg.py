@@ -298,6 +298,27 @@ def trim_wav(ffmpeg_bin: str, in_path: str, out_path: str, duration_sec: float =
     return out_path
 
 
+def slice_wav(ffmpeg_bin: str, in_path: str, out_path: str, start_sec: float, duration_sec: float) -> str:
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    args = [
+        ffmpeg_bin,
+        "-y",
+        "-ss",
+        str(max(0.0, start_sec)),
+        "-t",
+        str(max(0.01, duration_sec)),
+        "-i",
+        in_path,
+        "-acodec",
+        "pcm_s16le",
+        "-ac",
+        "1",
+        out_path,
+    ]
+    run_ffmpeg(args)
+    return out_path
+
+
 def make_music_bed(ffmpeg_bin: str, in_audio: str, out_wav: str, mlev: float = 0.6, base_volume: float = 0.35) -> str:
     """Create a background bed preserving authenticity while reducing vocals.
 

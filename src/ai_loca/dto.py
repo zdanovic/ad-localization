@@ -35,8 +35,29 @@ class TTSRequest(BaseModel):
     voice: Optional[str] = None
     language: Optional[str] = None
     speaker_wav_path: Optional[str] = None
+    # Optional prosody controls (adapter-dependent)
+    style: Optional[str] = None
+    emotion: Optional[str] = None
+    speed: Optional[float] = None  # 1.0 = default
+    pitch: Optional[float] = None  # semitone delta or provider-specific
 
 
 class TTSResponse(BaseModel):
     audio_path: str
     format: str
+
+
+class DubSegmentPlan(BaseModel):
+    index: int
+    start: float
+    end: float
+    text: str
+    style: Optional[str] = None
+    emotion: Optional[str] = None
+    speed: Optional[float] = None
+    pitch: Optional[float] = None
+
+
+class DubPlan(BaseModel):
+    language: Optional[str] = None
+    segments: List[DubSegmentPlan] = Field(default_factory=list)

@@ -53,6 +53,15 @@ class HFTTSAdapter:
             # Send common keys used by popular TTS endpoints (XTTS, CosyVoice, OpenVoice)
             params["speaker_wav"] = b64
             params["prompt_wav"] = b64
+        # Optional prosody/style params (adapter-dependent, best-effort)
+        if req.style:
+            params["style"] = req.style
+        if req.emotion:
+            params["emotion"] = req.emotion
+        if req.speed is not None:
+            params["speed"] = req.speed
+        if req.pitch is not None:
+            params["pitch"] = req.pitch
         if params:
             payload["parameters"] = params
         headers = {**self._headers, "Accept": f"audio/{audio_format}", "Content-Type": "application/json"}

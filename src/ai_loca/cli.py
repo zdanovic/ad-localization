@@ -13,7 +13,6 @@ from .utils.ffmpeg import (
     render_text_overlay,
     overlay_image,
     extract_audio,
-    burn_subtitles,
     ffmpeg_version,
     generate_test_video,
     generate_solid_png,
@@ -40,10 +39,17 @@ def main() -> None:
     p_loc.add_argument("--tts-language")
     p_loc.add_argument("--tts-speaker-wav")
     p_loc.add_argument("--tts-segmented", action="store_true", help="Synthesize TTS per subtitle segment and concat")
-    p_loc.add_argument("--burn-subtitles", action="store_true")
+    p_loc.add_argument("--pro-dub", action="store_true", help="Use LLM prosody planning + voice ref for high-quality dubbing")
+    p_loc.add_argument("--auto-speaker-ref", action="store_true", help="Auto-extract speaker reference voice from input video")
+    p_loc.add_argument(
+        "--bed-mode",
+        choices=["fast", "final"],
+        default="final",
+        help="Background bed source: fast (mid/side) or final (Demucs clean)",
+    )
+    p_loc.add_argument("--keep-tmp", action="store_true", help="Keep temporary artifacts for debugging")
     p_loc.add_argument("--force", action="store_true")
-    p_loc.add_argument("--input-subs", help="Path to input subtitles (SRT/VTT) to skip STT")
-    p_loc.add_argument("--subs-only", action="store_true", help="Skip TTS and only translate/burn subtitles")
+    # subtitles removed for MVP: no inputs or burn-in
 
     # stt
     p_stt = sub.add_parser("stt", help="Transcribe audio using HF Whisper")
@@ -132,14 +138,15 @@ def main() -> None:
                 output_video=args.output_video,
                 overlay_text=args.overlay_text,
                 overlay_png=args.overlay_png,
-                burn_subs=args.burn_subtitles,
                 force=args.force,
                 tts_voice=args.tts_voice,
-                input_subs=args.input_subs,
-                subs_only=args.subs_only,
                 tts_language=args.tts_language,
                 tts_speaker_wav=args.tts_speaker_wav,
                 tts_segmented=args.tts_segmented,
+                pro_dub=args.pro_dub,
+                auto_speaker_ref=args.auto_speaker_ref,
+                bed_mode=args.bed_mode,
+                keep_tmp=args.keep_tmp,
             )
             print(out)
         elif args.cmd == "stt":
@@ -275,25 +282,9 @@ def main() -> None:
                 png_vid = Path(settings.tmp_dir) / "smoke_png.mp4"
                 overlay_image(settings.ffmpeg_bin, str(current), str(png), str(png_vid), x="(W-w)-20", y="20")
                 current = png_vid
-            # Burn simple subtitles
-            from .subtitles.processor import pysubs2, export_srt, transcript_to_subs
-            from .dto import Transcript, TranscriptSegment
-
-            subs_transcript = Transcript(
-                segments=[
-                    TranscriptSegment(start=0.2, end=1.0, text="Hello, world!"),
-                    TranscriptSegment(start=1.0, end=1.8, text="Smoke test OK"),
-                ]
-            )
-            subs = transcript_to_subs(subs_transcript)
-            srt_path = Path(settings.tmp_dir) / "smoke.srt"
-            export_srt(subs, str(srt_path))
-            # Burn
-            burned = Path(settings.tmp_dir) / "smoke_burn.mp4"
-            burn_subtitles(settings.ffmpeg_bin, str(current), str(srt_path), str(burned))
             # Output
             Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-            Path(args.out).write_bytes(burned.read_bytes())
+            Path(args.out).write_bytes(Path(current).read_bytes())
             print(str(args.out))
         elif args.cmd == "snapshot":
             from .utils.snapshot import create_snapshot
