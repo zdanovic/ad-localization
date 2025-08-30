@@ -20,6 +20,7 @@ from ..utils.ffmpeg import (
         make_music_bed,
         duck_mix_tts_with_bed,
     )
+from ..audio.stems import build_stems_demucs
 from ..adapters import (
     HFWhisperSTTAdapter,
     HFTranslationAdapter,
@@ -108,6 +109,10 @@ class Orchestrator:
         tts_language: Optional[str] = None,
         tts_speaker_wav: Optional[str] = None,
         tts_segmented: bool = True,
+        tts_xfade_ms: int = 0,
+        tts_fade_ms: int = 0,
+        tts_preserve_timing: bool = False,
+        bed_clean: bool = False,
     ) -> str:
         try:
             key = self._hash_key(input_video, target_lang)
@@ -164,9 +169,16 @@ class Orchestrator:
 
                 if tts_segmented:
                     # Synthesize per segment and concat
-                    from ..utils.ffmpeg import normalize_wav, concat_wavs
+                    from ..utils.ffmpeg import normalize_wav, concat_wavs, concat_wavs_crossfade, fade_wav, generate_silence_wav
 
                     wavs: list[str] = []
+                    # Optional leading silence to preserve start offset
+                    if tts_preserve_timing and translated.segments:
+                        lead = translated.segments[0].start
+                        if lead > 0.03:
+                            sil = deterministic_artifact(self.settings.tmp_dir, key + "_sil0", "sil_lead.wav")
+                            generate_silence_wav(self.settings.ffmpeg_bin, sil, lead)
+                            wavs.append(sil)
                     for i, seg in enumerate(translated.segments):
                         seg_wav = deterministic_artifact(self.settings.tmp_dir, key + f"_seg{i}", f"seg_{i}.wav")
                         if not Path(seg_wav).exists() or force:
@@ -193,13 +205,28 @@ class Orchestrator:
                         polished = deterministic_artifact(self.settings.tmp_dir, key + f"_seg{i}", f"seg_{i}_vox.wav")
                         polish_voice(self.settings.ffmpeg_bin, seg_wav, polished)
                         seg_wav = polished
+                        # Tiny edge fades to remove clicks (optional)
+                        if tts_fade_ms and tts_fade_ms > 0:
+                            faded = deterministic_artifact(self.settings.tmp_dir, key + f"_seg{i}", f"seg_{i}_fade.wav")
+                            fade_wav(self.settings.ffmpeg_bin, seg_wav, faded, fade_ms=tts_fade_ms)
+                            seg_wav = faded
                         # Normalize to PCM s16le for concat
                         norm_wav = deterministic_artifact(self.settings.tmp_dir, key + f"_seg{i}", f"seg_{i}_norm.wav")
                         if not Path(norm_wav).exists() or force:
                             normalize_wav(self.settings.ffmpeg_bin, seg_wav, norm_wav)
                         wavs.append(norm_wav)
+                        # Insert gap to next start if preserving timeline
+                        if tts_preserve_timing and i + 1 < len(translated.segments):
+                            gap = translated.segments[i + 1].start - seg.end
+                            if gap > 0.03:
+                                sil = deterministic_artifact(self.settings.tmp_dir, key + f"_sil{i+1}", f"sil_{i+1}.wav")
+                                generate_silence_wav(self.settings.ffmpeg_bin, sil, gap)
+                                wavs.append(sil)
                     tts_audio = deterministic_artifact(self.settings.tmp_dir, key, f"tts_{target_lang}.wav")
-                    concat_wavs(self.settings.ffmpeg_bin, wavs, tts_audio)
+                    if tts_xfade_ms and len(wavs) > 1:
+                        concat_wavs_crossfade(self.settings.ffmpeg_bin, wavs, tts_audio, xfade_ms=tts_xfade_ms)
+                    else:
+                        concat_wavs(self.settings.ffmpeg_bin, wavs, tts_audio)
                 else:
                     tts_audio = deterministic_artifact(self.settings.tmp_dir, key, f"tts_{target_lang}.wav")
                     if not Path(tts_audio).exists() or force:
@@ -217,8 +244,32 @@ class Orchestrator:
                     tts_audio = polished
                 # Build music/SFX bed from original audio and duck under TTS, then mux
                 bed_wav = deterministic_artifact(self.settings.tmp_dir, key, f"bed_{target_lang}.wav")
-                if not Path(bed_wav).exists() or force:
-                    make_music_bed(self.settings.ffmpeg_bin, audio_path, bed_wav)
+                if bed_clean:
+                    try:
+                        # Run Demucs stems once; prefer acc_clean over final/refill to minimize vocal bleed
+                        _voc, acc_final, _rep = build_stems_demucs(
+                            self.settings,
+                            input_video=input_video,
+                            out_dir=self.settings.tmp_dir,
+                            model="htdemucs_ft",
+                            use_cpu=True,
+                            auto_tune_bed=True,
+                            keep_intermediate=False,
+                            force=force,
+                        )
+                        stem = Path(input_video).stem
+                        acc_clean = Path(self.settings.tmp_dir) / f"{stem}_acc_clean.wav"
+                        if acc_clean.exists():
+                            bed_wav = str(acc_clean)
+                        else:
+                            bed_wav = acc_final
+                    except Exception:
+                        # Fallback to default bed builder
+                        if not Path(bed_wav).exists() or force:
+                            make_music_bed(self.settings.ffmpeg_bin, audio_path, bed_wav)
+                else:
+                    if not Path(bed_wav).exists() or force:
+                        make_music_bed(self.settings.ffmpeg_bin, audio_path, bed_wav)
                 mixed_wav = deterministic_artifact(self.settings.tmp_dir, key, f"mix_{target_lang}.wav")
                 if not Path(mixed_wav).exists() or force:
                     # Target bed loudness closer to original, but below voice by ~3 LU

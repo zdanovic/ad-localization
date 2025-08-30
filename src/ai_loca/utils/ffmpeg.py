@@ -279,6 +279,65 @@ def concat_wavs(ffmpeg_bin: str, inputs: List[str], out_path: str) -> str:
     return out_path
 
 
+def concat_wavs_crossfade(ffmpeg_bin: str, inputs: List[str], out_path: str, xfade_ms: int = 60) -> str:
+    """Concatenate WAVs with short acrossfades to reduce audible cuts.
+
+    Uses iterative acrossfade: (((a xfade b) xfade c) ...).
+    Safe default triangle curve. Keep xfade_ms small (30-80ms) to avoid timing drift.
+    """
+    if not inputs:
+        raise FFmpegError("No input wavs to concat")
+    if len(inputs) == 1:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_path).write_bytes(Path(inputs[0]).read_bytes())
+        return out_path
+    dur = max(0.005, xfade_ms / 1000.0)
+    cur = inputs[0]
+    for idx in range(1, len(inputs)):
+        nxt = inputs[idx]
+        tmp = Path(out_path).with_suffix("")
+        tmp_i = str(tmp) + f"_xf{idx}.wav"
+        args = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            cur,
+            "-i",
+            nxt,
+            "-filter_complex",
+            f"[0:a][1:a]acrossfade=d={dur}:c1=tri:c2=tri[mix]",
+            "-map",
+            "[mix]",
+            "-acodec",
+            "pcm_s16le",
+            tmp_i,
+        ]
+        run_ffmpeg(args)
+        cur = tmp_i
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(out_path).write_bytes(Path(cur).read_bytes())
+    return out_path
+
+
+def fade_wav(ffmpeg_bin: str, in_wav: str, out_wav: str, fade_ms: int = 15) -> str:
+    """Apply short fade-in and fade-out to reduce clicks at segment edges."""
+    Path(out_wav).parent.mkdir(parents=True, exist_ok=True)
+    fin = max(0.001, fade_ms / 1000.0)
+    args = [
+        ffmpeg_bin,
+        "-y",
+        "-i",
+        in_wav,
+        "-af",
+        f"afade=t=in:st=0:d={fin},areverse,afade=t=in:st=0:d={fin},areverse",
+        "-acodec",
+        "pcm_s16le",
+        out_wav,
+    ]
+    run_ffmpeg(args)
+    return out_wav
+
+
 def trim_wav(ffmpeg_bin: str, in_path: str, out_path: str, duration_sec: float = 20.0) -> str:
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     args = [
@@ -794,6 +853,27 @@ def generate_solid_png(ffmpeg_bin: str, out_path: str, size: str = "200x80", col
         f"color=c={color}:s={size}",
         "-frames:v",
         "1",
+        out_path,
+    ]
+    run_ffmpeg(args)
+    return out_path
+
+
+def generate_silence_wav(ffmpeg_bin: str, out_path: str, duration: float, sample_rate: int = DEFAULT_AUDIO.sample_rate) -> str:
+    """Generate a silent mono WAV of given duration and sample rate."""
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    dur = max(0.0, float(duration))
+    args = [
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"anullsrc=r={sample_rate}:cl=mono",
+        "-t",
+        str(dur),
+        "-acodec",
+        "pcm_s16le",
         out_path,
     ]
     run_ffmpeg(args)

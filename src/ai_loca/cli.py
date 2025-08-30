@@ -40,6 +40,10 @@ def main() -> None:
     p_loc.add_argument("--tts-language")
     p_loc.add_argument("--tts-speaker-wav")
     p_loc.add_argument("--tts-segmented", action="store_true", help="Synthesize TTS per subtitle segment and concat")
+    p_loc.add_argument("--tts-xfade-ms", type=int, default=0, help="Crossfade TTS segments by N milliseconds (0=off)")
+    p_loc.add_argument("--tts-fade-ms", type=int, default=0, help="Apply short fade-in/out to each TTS segment (ms, 0=off)")
+    p_loc.add_argument("--tts-preserve-timing", action="store_true", help="Insert silences between segments to match original timings")
+    p_loc.add_argument("--bed-clean", action="store_true", help="Use Demucs clean bed (acc_clean) instead of default bed")
     p_loc.add_argument("--burn-subtitles", action="store_true")
     p_loc.add_argument("--force", action="store_true")
     p_loc.add_argument("--input-subs", help="Path to input subtitles (SRT/VTT) to skip STT")
@@ -140,6 +144,10 @@ def main() -> None:
                 tts_language=args.tts_language,
                 tts_speaker_wav=args.tts_speaker_wav,
                 tts_segmented=args.tts_segmented,
+                tts_xfade_ms=args.tts_xfade_ms,
+                tts_fade_ms=args.tts_fade_ms,
+                tts_preserve_timing=args.tts_preserve_timing,
+                bed_clean=args.bed_clean,
             )
             print(out)
         elif args.cmd == "stt":

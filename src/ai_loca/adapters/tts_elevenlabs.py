@@ -59,10 +59,17 @@ class ElevenLabsTTSAdapter:
             try:
                 voice_id = self._ensure_voice(client, req)
                 url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                import os
+                # Allow tuning via env vars without changing code elsewhere
+                stab = float(os.environ.get("ELEVENLABS_STABILITY", "0.60"))
+                sim = float(os.environ.get("ELEVENLABS_SIMILARITY", "0.85"))
+                style = float(os.environ.get("ELEVENLABS_STYLE", "0.35"))
+                spk_boost = os.environ.get("ELEVENLABS_SPEAKER_BOOST", "true").lower() in ("1","true","yes","on")
+                voice_settings = {"stability": stab, "similarity_boost": sim, "style": style, "use_speaker_boost": spk_boost}
                 payload = {
                     "text": req.text,
                     "model_id": self.model_id,
-                    "voice_settings": {"stability": 0.45, "similarity_boost": 0.85},
+                    "voice_settings": voice_settings,
                 }
                 # ElevenLabs auto-detects language in multilingual models; explicit code not required
                 resp = client.post(url, headers=headers, json=payload)
