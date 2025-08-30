@@ -1,0 +1,16 @@
+__pycache__/
+.venv/
+.ai_loca_tmp/
+.ai_loca_stage_separate/
+output/
+.env
+videos/
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+*.pyc
+*.pyo
+*.log
+*.tar.gz
