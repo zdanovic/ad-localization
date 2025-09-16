@@ -37,6 +37,12 @@ export FFMPEG_BIN=ffmpeg  # or absolute path
 export TMP_DIR=.ai_loca_tmp
 export HTTP_TIMEOUT=60
 export HTTP_RETRIES=3
+# Post-processing knobs for Google text detection results
+export MIN_CONFIDENCE=0.55            # drop segments below this confidence (if present)
+export MIN_AREA_RATIO=0.0005          # drop tiny polygons (< this fraction of frame area)
+export MASK_PADDING_PX=3              # dilate mask polygons by N pixels
+export NMS_IOU=0.7                    # deduplicate polygons at same timestamp if AABB IoU >= this
+export MIN_SEGMENT_DURATION_SEC=0     # drop very short segments (< seconds)
 ## Optional: custom Inference Endpoints (instead of HF API)
 # export STT_ENDPOINT="https://<your-stt-endpoint>"
 # export MT_ENDPOINT="https://<your-mt-endpoint>"

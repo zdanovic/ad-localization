@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.git/
+.gitignore
+.DS_Store
+output/
+videos/
+.ai_loca_tmp/
+*.log
+*.tar.gz
+.env
+

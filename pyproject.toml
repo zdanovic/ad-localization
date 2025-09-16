@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "video-text-masker"
+version = "0.2.0"
+description = "FastAPI service that wraps Google Cloud Video Intelligence text detection."
+authors = ["Your Team <dev@example.com>"]
+readme = "README.md"
+license = "MIT"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+fastapi = "^0.112"
+uvicorn = {version = "^0.30", extras=["standard"]}
+pydantic = "^2.9"
+pydantic-settings = "^2.5"
+python-multipart = "^0.0.9"
+google-cloud-storage = "^2.18"
+google-cloud-videointelligence = "^2.12"
+opencv-python-headless = "^4.10"
+numpy = "^2.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+pytest-cov = "^5.0"
+ruff = "^0.5"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
