@@ -32,3 +32,4 @@ htmlcov/
 *.bak
 *.swp
 *.tar.gz
+.gcp
